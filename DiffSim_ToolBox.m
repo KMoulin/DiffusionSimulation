@@ -21,7 +21,7 @@ classdef DiffSim_ToolBox
               
         end
 
-        function [T6, EigValue,EigVector,MD,FA,Trace_DTI]= Tensor_Water(Water,dT)
+        function [T6, EigValue,EigVector,MD,FA,Trace_DTI]= Tensor_Water(Water,dT,DiffTime)
 
             Tensor=[];
             EigValue=[];
@@ -31,6 +31,10 @@ classdef DiffSim_ToolBox
             Trace_DTI=[];
             tmpInput=[];  
             
+            if (nargin<3)
+               DiffTime=size(Water,3)*dT;
+            end
+
             % b-value and dir are arbitrary to give us enought precision.
             bval=1000;
             dir=[0.831862183551238,-0.978020640898505,-0.746594402068549,0.618503898022940,0.0357105488849347,0.0690933229952567,0.285311347832409,0.541890310423585,0.696013916160111,-0.586381611851074,-0.361852167119390,-0.107233806522707;
@@ -39,7 +43,7 @@ classdef DiffSim_ToolBox
             
              % create synthetic dwi values.
              for cpt_dwi=1:1:size(dir,1)
-                   [tmp_adc] = DiffSim_ToolBox.ADC_Water_dir(Water,squeeze(dir(cpt_dwi,:)),dT);        
+                   [tmp_adc] = DiffSim_ToolBox.ADC_Water_dir(Water,squeeze(dir(cpt_dwi,:)),dT,DiffTime);        
                    dwi(cpt_dwi)=exp(-bval*tmp_adc);
              end
               tmpInput(1,1,1)=1;
@@ -154,19 +158,25 @@ classdef DiffSim_ToolBox
          end
          
         %% Calculate the coefficient of diffusion from a dispacement distribution
-        function [ADC] = ADC_Water_mean(Water,dT) 
+        function [ADC] = ADC_Water_mean(Water,dT,DiffTime) 
             
+            if (nargin<3)
+                DiffTime=size(Water,3)*dT;
+            end
              % sum of the mean square of distance
             dx=abs(Water(:,:,end)-Water(:,:,1));
             % sum of x y z
             ssdx=squeeze(sum(dx.*dx,2));
             % Coefficient of diffusion mean square distance over dT in 3d, unit in mm2/s
-            ADC=1e6*mean(ssdx)/(6*size(Water,3)*dT);
+            ADC=1e6*mean(ssdx)/(6*DiffTime);
          end
         
         %% Calculate the coefficient of diffusion from a dispacement distribution per direction
-        function [ADC] = ADC_Water_dir(Water,dir,dT) 
+        function [ADC] = ADC_Water_dir(Water,dir,dT,DiffTime) 
             
+            if (nargin<4)
+                DiffTime=size(Water,3)*dT;
+            end
              % sum of the mean square of distance
             dx=(Water(:,:,end)-Water(:,:,1));   
             for cpt_dir=1:1:size(dir,1)
@@ -190,7 +200,7 @@ classdef DiffSim_ToolBox
                 % the ADC based on a projection of diffusion gradient
                 % the correct dimension is actually only 1
                 % To be verified... 
-                ADC(cpt_dir)=1e6*ssdx2/(2*size(Water,3)*dT);
+                ADC(cpt_dir)=1e6*ssdx2/(2*DiffTime);
             end
         end
         
@@ -215,7 +225,7 @@ classdef DiffSim_ToolBox
         %% Simulate a diffusion step  
         function [Dstep] = diffusion_step(N,D,Dim,dT)  
    
-        KD = sqrt(D * 3 * Dim * dT);
+        KD = sqrt(D * 2 * Dim * dT);
         Dvar=KD * randn(N,1);
          
         VectorDir=randn(N,3);
@@ -955,14 +965,14 @@ classdef DiffSim_ToolBox
                     
                     %%% 2) Calculate the diff parameters of the distribution
                                   
-                    DiffResults.ADC = DiffSim_ToolBox.ADC_Water_mean(Water,Diff_params.dT);
-                    [~, DiffResults.EigValue,DiffResults.EigVector,DiffResults.MD,DiffResults.FA,~]   = DiffSim_ToolBox.Tensor_Water(Water,Diff_params.dT);
+                    DiffResults.ADC = DiffSim_ToolBox.ADC_Water_mean(Water,Diff_params.dT,Diff_params.dur*Diff_params.dT);
+                    [~, DiffResults.EigValue,DiffResults.EigVector,DiffResults.MD,DiffResults.FA,~]   = DiffSim_ToolBox.Tensor_Water(Water,Diff_params.dT,Diff_params.dur*Diff_params.dT);
 
-                    DiffResults.ADC_water_in = DiffSim_ToolBox.ADC_Water_mean(Water(find(In_out_List(:,1)),:,:),Diff_params.dT);
-                    [~, DiffResults.EigValue_in,DiffResults.EigVector_in,DiffResults.MD_in,DiffResults.FA_in,~]   = DiffSim_ToolBox.Tensor_Water(Water(find(In_out_List(:,1)),:,:),Diff_params.dT);
+                    DiffResults.ADC_water_in = DiffSim_ToolBox.ADC_Water_mean(Water(find(In_out_List(:,1)),:,:),Diff_params.dT,Diff_params.dur*Diff_params.dT);
+                    [~, DiffResults.EigValue_in,DiffResults.EigVector_in,DiffResults.MD_in,DiffResults.FA_in,~]   = DiffSim_ToolBox.Tensor_Water(Water(find(In_out_List(:,1)),:,:),Diff_params.dT,Diff_params.dur*Diff_params.dT);
                     
-                    DiffResults.ADC_water_out = DiffSim_ToolBox.ADC_Water_mean(Water(find(~In_out_List(:,1)),:,:),Diff_params.dT);
-                    [~, DiffResults.EigValue_out,DiffResults.EigVector_out,DiffResults.MD_out,DiffResults.FA_out,~]   = DiffSim_ToolBox.Tensor_Water(Water(find(~In_out_List(:,1)),:,:),Diff_params.dT);
+                    DiffResults.ADC_water_out = DiffSim_ToolBox.ADC_Water_mean(Water(find(~In_out_List(:,1)),:,:),Diff_params.dT,Diff_params.dur*Diff_params.dT);
+                    [~, DiffResults.EigValue_out,DiffResults.EigVector_out,DiffResults.MD_out,DiffResults.FA_out,~]   = DiffSim_ToolBox.Tensor_Water(Water(find(~In_out_List(:,1)),:,:),Diff_params.dT,Diff_params.dur*Diff_params.dT);
                     
                     
                     disp([' Diff distribution generated in ' num2str(toc)]);
